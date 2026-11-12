@@ -1,0 +1,32 @@
+/* 视觉方向：审计底稿 / 复式账簿
+   米白 oklch(0.97 0.01 95) + 墨黑 oklch(0.28 0.02 60) + 朱红 oklch(0.55 0.16 25)
+   双字体：Libre Baskerville（标题/叙述）+ JetBrains Mono（数字/表/编号） */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
+
+:root {
+  --paper: oklch(0.97 0.01 95);
+  --paper-deep: oklch(0.945 0.014 94);
+  --paper-edge: oklch(0.915 0.016 92);
+  --ink: oklch(0.28 0.02 60);
+  --ink-soft: oklch(0.42 0.02 60);
+  --muted: oklch(0.56 0.018 70);
+  --rule: oklch(0.84 0.015 90);
+  --rule-soft: oklch(0.9 0.012 92);
+  --vermillion: oklch(0.55 0.16 25);
+  --vermillion-deep: oklch(0.47 0.15 25);
+  --stamp-green: oklch(0.48 0.07 160);
+  --amber: oklch(0.66 0.12 70);
+
+  --font-serif: 'Libre Baskerville', 'Songti SC', Georgia, serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Menlo, monospace;
+
+  --step--1: clamp(0.68rem, 0.66rem + 0.1vw, 0.74rem);
+  --step-0: clamp(0.82rem, 0.8rem + 0.12vw, 0.9rem);
+  --step-1: clamp(0.98rem, 0.94rem + 0.2vw, 1.1rem);
+  --step-2: clamp(1.2rem, 1.1rem + 0.4vw, 1.5rem);
+  --step-3: clamp(1.6rem, 1.35rem + 1vw, 2.3rem);
+  --step-4: clamp(2.1rem, 1.6rem + 2vw, 3.4rem);
+
+  --rail: 74px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}

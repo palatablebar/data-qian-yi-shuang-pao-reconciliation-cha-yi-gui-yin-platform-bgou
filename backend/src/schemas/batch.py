@@ -22,6 +22,11 @@ class BatchCreateRequest(BaseModel):
         return value
 
 
+class BatchRunRequest(BaseModel):
+    # 已完成批次强制重跑：重算桶与差异，引用该批次的已签底稿将被标记为材料过期
+    force: bool = Field(default=False)
+
+
 def serialize_batch(batch: Any, include_pairs: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {
         "id": batch.id,

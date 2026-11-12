@@ -11,6 +11,9 @@ export function listPairs(): Promise<PairList> {
   return get<PairList>('/pairs');
 }
 
-export function updatePair(id: number, body: Partial<Pick<Pair, 'status' | 'owner' | 'description'>>): Promise<Pair> {
+export function updatePair(
+  id: number,
+  body: Partial<Pick<Pair, 'status' | 'owner' | 'description' | 'is_core'>>,
+): Promise<Pair> {
   return patch<Pair>(`/pairs/${id}`, body);
 }

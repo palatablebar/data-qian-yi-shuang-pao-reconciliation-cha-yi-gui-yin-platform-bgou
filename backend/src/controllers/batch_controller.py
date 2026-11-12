@@ -8,7 +8,7 @@ from src.config.database import get_db
 from src.controllers.auth_controller import write_audit
 from src.middlewares.rbac import require_permission
 from src.models.account import User
-from src.schemas.batch import BatchCreateRequest
+from src.schemas.batch import BatchCreateRequest, BatchRunRequest
 from src.services import batch_service, diff_service
 
 
@@ -38,12 +38,13 @@ def create_batch(
 
 def run_batch(
     batch_id: int,
+    payload: BatchRunRequest,
     request: Request,
     user: User = Depends(require_permission("batches:run")),
     db: Session = Depends(get_db),
 ) -> dict:
     batch = batch_service.get_batch(db, batch_id)
-    result = batch_service.dispatch_run(db, batch)
+    result = batch_service.dispatch_run(db, batch, force=payload.force)
     write_audit(
         db,
         request,
@@ -51,7 +52,7 @@ def run_batch(
         entity_type="ReconBatch",
         entity_id=str(batch.id),
         user=user,
-        payload={"batch_no": batch.batch_no, "task_id": result.get("task_id")},
+        payload={"batch_no": batch.batch_no, "task_id": result.get("task_id"), "force": payload.force},
     )
     return result
 

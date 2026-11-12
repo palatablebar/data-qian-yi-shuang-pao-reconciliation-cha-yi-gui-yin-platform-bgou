@@ -44,13 +44,17 @@ export function BatchDetail() {
       .catch(() => undefined);
   }, [batchId, batch?.status]);
 
-  const onRun = async () => {
+  const onRun = async (force = false) => {
     if (!batchId) return;
     setRunning(true);
     setNotice('');
     try {
-      await runBatch(batchId);
-      setNotice('已投递 Celery 任务：worker 容器正在真跑分桶对账…');
+      await runBatch(batchId, force);
+      setNotice(
+        force
+          ? '已投递强制重跑：桶与差异将重新计算，引用本批次的已签底稿会被标记为材料过期'
+          : '已投递 Celery 任务：worker 容器正在真跑分桶对账…',
+      );
       reload();
     } catch (err) {
       setError(errorMessage(err));
@@ -165,8 +169,13 @@ export function BatchDetail() {
 
       <div className="row" style={{ marginBottom: 22 }}>
         {canRun && (batch.status === 'pending' || batch.status === 'failed') ? (
-          <button className="btn btn--primary" type="button" onClick={onRun} disabled={running}>
+          <button className="btn btn--primary" type="button" onClick={() => onRun(false)} disabled={running}>
             {running ? '入队中…' : '运行对账（Celery）'}
+          </button>
+        ) : null}
+        {canRun && batch.status === 'completed' ? (
+          <button className="btn" type="button" onClick={() => onRun(true)} disabled={running}>
+            {running ? '入队中…' : '强制重跑本批次'}
           </button>
         ) : null}
         <Link className="btn btn--ghost" to={`/diffs?batch_id=${batch.id}`}>

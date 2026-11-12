@@ -18,6 +18,8 @@ const PERMISSIONS: Record<string, string[]> = {
   'batches:run': ['admin', 'analyst'],
   'tickets:create': ['admin', 'analyst'],
   'tickets:approve': ['admin'],
+  'signoffs:create': ['admin', 'analyst'],
+  'signoffs:sign': ['admin'],
 };
 
 export const useAuthStore = create<AuthState>((set, get) => ({

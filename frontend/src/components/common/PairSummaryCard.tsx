@@ -32,6 +32,11 @@ export function PairSummaryCard({ pair, compact, selected }: Props) {
         </span>
         <span>PK {pair.primary_key}</span>
         <span>字段 {pair.field_count}</span>
+        {pair.is_core ? (
+          <span style={{ color: 'var(--vermillion)' }}>● 上线评审核心表</span>
+        ) : (
+          <span className="muted">○ 非核心表</span>
+        )}
       </div>
       {!compact ? <p style={{ margin: '10px 0 6px', color: 'var(--ink-soft)' }}>{pair.description}</p> : null}
       <div className="row mono" style={{ fontSize: 'var(--step--1)', marginTop: 8 }}>

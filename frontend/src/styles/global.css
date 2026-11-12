@@ -354,6 +354,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   margin: 12px 0;
 }
 .error-note strong { color: var(--vermillion); }
+.error-note div { white-space: pre-line; }
 
 /* ---------------- 页脚页码 ---------------- */
 .page-footer {

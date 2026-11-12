@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from src.config.database import get_db
 from src.controllers import batch_controller
 from src.middlewares.rate_limit import rate_limit_guard
-from src.schemas.batch import BatchCreateRequest
+from src.schemas.batch import BatchCreateRequest, BatchRunRequest
 
 router = APIRouter(prefix="/batches", tags=["batches"], dependencies=[Depends(rate_limit_guard)])
 
@@ -44,10 +44,11 @@ def get_batch(batch_id: int, user=Depends(batch_controller.require_permission("b
 def run_batch(
     batch_id: int,
     request: Request,
+    payload: BatchRunRequest | None = None,
     user=Depends(batch_controller.require_permission("batches:run")),
     db: Session = Depends(get_db),
 ) -> dict:
-    return batch_controller.run_batch(batch_id, request, user, db)
+    return batch_controller.run_batch(batch_id, payload or BatchRunRequest(), request, user, db)
 
 
 @router.get("/{batch_id}/buckets")

@@ -30,6 +30,8 @@ def update_pair(db: Session, pair_id: int, payload) -> TablePair:
     pair = get_pair(db, pair_id)
     if payload.status is not None:
         pair.status = payload.status
+    if payload.is_core is not None:
+        pair.is_core = payload.is_core
     if payload.owner is not None:
         pair.owner = payload.owner
     if payload.description is not None:

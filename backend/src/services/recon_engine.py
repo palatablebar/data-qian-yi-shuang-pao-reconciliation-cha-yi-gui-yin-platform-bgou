@@ -160,14 +160,18 @@ def _drill_bucket(
     return diffs
 
 
-def run_batch(batch_id: int, bucket_limit: int | None = None) -> dict[str, Any]:
-    """执行一个批次（Celery worker / seed 同步调用共用）。bucket_limit 用于演示 running 状态。"""
+def run_batch(batch_id: int, bucket_limit: int | None = None, force: bool = False) -> dict[str, Any]:
+    """执行一个批次（Celery worker / seed 同步调用共用）。bucket_limit 用于演示 running 状态。
+
+    force=True 时允许已完成批次重新对账：旧桶结果与差异先删后插，
+    依赖该批次的已签底稿会在新鲜度检查中被标记为过期（batch_rerun）。
+    """
     started_at = time.perf_counter()
     with session_scope() as db:
         batch = db.get(ReconBatch, batch_id)
         if batch is None:
             return {"ok": False, "reason": "batch_not_found", "batch_id": batch_id}
-        if batch.status == BatchStatus.COMPLETED.value:
+        if batch.status == BatchStatus.COMPLETED.value and not force:
             return {"ok": True, "batch_id": batch.id, "status": batch.status, "idempotent": True}
 
         pairs = db.query(TablePair).filter(TablePair.code.in_(batch.pair_codes or [])).all()

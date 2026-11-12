@@ -24,9 +24,9 @@
 
 | 角色（enum） | 账号 | 主要页面 | 权限 |
 |---|---|---|---|
-| `admin` 迁移负责人 | admin@paritycheck.demo | 全部 | 全部写 + 审批修复单 |
-| `analyst` 数据开发 | analyst@paritycheck.demo | 映射/批次/差异 | 读写，不能审批（审批接口 403） |
-| `viewer` 审计 | viewer@paritycheck.demo | 批次/报告 | 只读，可导出 CSV（写操作 403） |
+| `admin` 迁移负责人 | admin@paritycheck.demo | 全部 | 全部写 + 审批修复单 + 签核底稿 |
+| `analyst` 数据开发 | analyst@paritycheck.demo | 映射/批次/差异/底稿 | 读写，不能审批修复单、不能签核（审批/签核接口 403） |
+| `viewer` 审计 | viewer@paritycheck.demo | 批次/报告/底稿 | 只读，可导出 CSV（写操作 403） |
 
 密码统一 `Demo@2026`。
 
@@ -37,7 +37,9 @@
 - Celery worker 真跑分桶对账，桶级 count/checksum 落库；128 桶热力矩阵 + 进度条。
 - 差异下钻：按差异类型/桶/表对/字段筛选，展示源值→目标值、相似度、归因与建议。
 - 修复单：草稿 → 提交 → 审批（仅 admin），差异范围由后端按 (表, 字段, 分类) 汇总。
-- 验收导出：差异明细 CSV、归因汇总 CSV（UTF-8 BOM，HTTP 下载）。
+- 签核底稿：选覆盖核心表的已完成批次生成冻结记录（可验收表 / 阻塞差异 / 已准确豁免差异），
+  迁移负责人签核；已签记录快照不被后续变化改写，读时实时比对材料新鲜度并提示过期项，支持重签留痕。
+- 验收导出：差异明细 CSV、归因汇总 CSV、签核底稿 CSV（UTF-8 BOM，HTTP 下载）。
 - 横切：JWT + 3 角色鉴权、`audit_logs` 审计日志、Redis 每分钟限流 + 每角色每日配额、统一错误码。
 
 ## 快速启动
@@ -57,7 +59,7 @@ docker compose exec -T backend python -m scripts.seed_demo
 真实 seed 输出（两次运行逐字一致）：
 
 ```
-SEED_SUMMARY pairs=5 src_rows=12000 tgt_rows=11968 batches=4 diffs=40 tickets=3 users=3
+SEED_SUMMARY pairs=5 src_rows=12000 tgt_rows=11968 batches=4 diffs=40 tickets=3 signoffs=1 users=3
 ```
 
 ## 本地开发
@@ -85,6 +87,8 @@ gb-553/
 │   ├── Dockerfile · requirements.txt · alembic.ini · entrypoint.sh
 │   ├── scripts/seed_demo.py  # 幂等 seed（输出一行 SEED_SUMMARY）
 │   └── src/{config,constants,models,schemas,services,controllers,routes,middlewares,utils,migrations}
+│       └── signoff：models/signoff.py · services/signoff_service.py · controllers/signoff_controller.py
+│           · routes/signoffs.py · schemas/signoff.py · migrations/versions/0002_signoff.py
 ├── worker/
 │   ├── Dockerfile · healthcheck.sh
 │   └── src/{config,tasks}    # 复用 backend 的 recon_engine（同一份算法实现）
@@ -115,6 +119,23 @@ gb-553/
   `encoding`（仅全半角、空格、不可见字符差异）/ `value_shift` / `duplicate_key`（失败态，不参与相似度）。
 - 归因聚合：按 `(表, 字段, 分类)` 计数排序，输出「最可能原因 + 修复建议」。
 
+### C. 签核底稿 `backend/src/services/signoff_service.py`
+
+上线评审用的验收结论冻结，解决「多批次结果人工拼结论、重跑/修复单变更后旧结论能否沿用难判断」。
+
+- 核心表：`table_pairs.is_core` 标记（demo 中 orders/order_item/customer 为核心，可在表映射页维护）。
+- 冻结快照：选择覆盖核心表的**已完成**批次，按当前库生成 `snapshot_json`，含
+  批次指纹、表对验收结论（可验收/阻塞）、阻塞差异清单、按已审批修复单分组的已准确豁免差异、校验结论。
+- 不可通过：核心表未全覆盖（`SIGNOFF_CORE_NOT_COVERED`）或仍有未豁免差异（`SIGNOFF_HAS_UNEXEMPTED_DIFF`），
+  只有已审批（approved）修复单 scope 内的 diff 算豁免，草稿/待审批/驳回单不算。
+- 幂等：相同批次集合（排序后 sha256 哈希 `batch_set_hash`，与选择顺序无关）重复生成不新增记录——
+  有草稿直接返回原草稿；已签则 409 引导对原记录重签。
+- 不可变 + 新鲜度：已签记录的快照永不改写；每次读取实时重算「冻结指纹 vs 当前材料」，
+  过期原因细分批次重跑（`batch_rerun`）、批次状态变化、修复单变更/新增、新增未豁免差异、核心表标记变化。
+- 重签：对已签记录发起重签会**保留原记录**并生成同批次组合的新草稿，形成审计留痕链。
+- 触发过期的典型动作：批次详情页「强制重跑」（`POST /batches/{id}/run {"force":true}`，
+  引擎先删旧桶/旧差异再重算）、修复单审批状态变化、核心表标记调整。
+
 ## 共享枚举与出现位置
 
 | 枚举组 | 后端定义 | 前端定义 | 其他出现位置 |
@@ -124,6 +145,8 @@ gb-553/
 | `BucketStatus` | `backend/src/constants/enums.py` | `frontend/src/constants/enums.ts` | `recon_engine.py` 桶判定、`BucketMatrix` 图例 |
 | `DiffType` | `backend/src/constants/enums.py` | `frontend/src/constants/enums.ts` | `diff_engine.py` 分类与归因、`Diffs` 页筛选 chip |
 | `TicketStatus` | `backend/src/constants/enums.py` | `frontend/src/constants/enums.ts` | `ticket_service.py` 状态机、`Tickets` 页台账 |
+| `SignoffStatus` | `backend/src/constants/enums.py` | `frontend/src/constants/enums.ts` | `signoff_service.py` 草稿/已签状态机、`Signoffs` 页印章 |
+| 签核新鲜度 `fresh/stale` + 过期原因 | `backend/src/constants/enums.py` | `frontend/src/constants/enums.ts` | `signoff_service.evaluate_freshness` 读时实时计算、`Signoffs` 页过期提示 |
 
 ## 环境变量
 
@@ -135,7 +158,7 @@ gb-553/
 `pairs=5`（orders/order_item/customer/payment/refund）、源表 12,000 行、目标表 11,968 行；
 4 个批次：completed（128 桶 / 5% 抽样，真实跑出 5 个不一致桶、40 行差异 = 12 类型截断 + 8 编码 + 20 缺失）、
 running（payment，桶 64，已算前 16 桶）、failed（refund，`null_primary_key`）、pending（orders，桶 256）；
-3 张修复单（draft / submitted / approved）；3 个演示账号。
+3 张修复单（draft / submitted / approved）；1 张签核底稿草稿（覆盖三核心表，因仍有未豁免差异默认不可签）；3 个演示账号。
 
 ## License
 

@@ -36,6 +36,25 @@ export const TICKET_STATUS_LABELS: Record<string, string> = {
   rejected: '驳回',
 };
 
+export const SIGNOFF_STATUS_LABELS: Record<string, string> = {
+  draft: '草稿',
+  signed: '已签核',
+};
+
+export const SIGNOFF_FRESHNESS_LABELS: Record<string, string> = {
+  fresh: '材料有效',
+  stale: '材料过期',
+};
+
+export const STALE_REASON_LABELS: Record<string, string> = {
+  batch_rerun: '批次冻结后重跑，对账结果已改写',
+  batch_status: '批次状态与冻结时不一致',
+  ticket_changed: '引用的已审批修复单发生变更',
+  ticket_new: '冻结后出现覆盖本批次差异的新修复单',
+  diff_unexempted: '存在冻结后新增的未豁免差异',
+  pair_core_changed: '核心表标记发生变化',
+};
+
 export const PAIR_STATUS_LABELS: Record<string, string> = {
   active: '启用',
   paused: '暂停',

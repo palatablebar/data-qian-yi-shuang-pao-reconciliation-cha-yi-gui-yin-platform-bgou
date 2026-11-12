@@ -7,6 +7,7 @@ const ITEMS = [
   { to: '/batches/new', label: '发起批次' },
   { to: '/diffs', label: '差异下钻' },
   { to: '/tickets', label: '修复单' },
+  { to: '/signoffs', label: '签核底稿' },
 ];
 
 export function IndexRail() {

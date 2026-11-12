@@ -33,8 +33,8 @@ export function createBatch(payload: CreateBatchPayload): Promise<Batch> {
   return post<Batch>('/batches', payload);
 }
 
-export function runBatch(id: number): Promise<{ batch_id: number; task_id: string; status: string }> {
-  return post<{ batch_id: number; task_id: string; status: string }>(`/batches/${id}/run`);
+export function runBatch(id: number, force = false): Promise<{ batch_id: number; task_id: string; status: string }> {
+  return post<{ batch_id: number; task_id: string; status: string }>(`/batches/${id}/run`, { force });
 }
 
 export function estimate(pairCodes: string[], bucketCount: number, sampleRate: number): Promise<Estimate> {

@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base, now
@@ -21,6 +21,7 @@ class TablePair(Base):
     primary_key: Mapped[str] = mapped_column(String(64), nullable=False)
     field_rules: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    is_core: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     owner: Mapped[str] = mapped_column(String(60), nullable=False, default="")
     row_estimate_src: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     row_estimate_tgt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

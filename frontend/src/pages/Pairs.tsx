@@ -55,6 +55,20 @@ export function Pairs() {
     }
   };
 
+  const toggleCore = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const next = await updatePair(selected.id, { is_core: !selected.is_core });
+      setPairs((current) => current.map((pair) => (pair.id === next.id ? next : pair)));
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <>
       <header className="page-head">
@@ -154,8 +168,11 @@ export function Pairs() {
                   <button className="btn" type="button" onClick={toggleStatus} disabled={saving}>
                     {saving ? '写入中…' : selected.status === 'active' ? '暂停该表对' : '恢复该表对'}
                   </button>
+                  <button className="btn btn--ghost" type="button" onClick={toggleCore} disabled={saving}>
+                    {selected.is_core ? '取消核心表标记' : '标记为核心表'}
+                  </button>
                   <span className="mono muted" style={{ fontSize: 'var(--step--1)' }}>
-                    仅迁移负责人（admin）可维护映射状态；此操作会写入审计日志。
+                    仅迁移负责人（admin）可维护映射；核心表必须被签核批次覆盖，操作写入审计日志。
                   </span>
                 </div>
               ) : (

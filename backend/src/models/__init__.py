@@ -4,6 +4,7 @@ from src.models.account import AuditLog, User
 from src.models.catalog import TablePair
 from src.models.recon import BucketResult, ReconBatch
 from src.models.trace import DiffDetail, RepairTicket
+from src.models.signoff import SignoffRecord
 from src.models import demo_tables  # noqa: F401  (注册 src_* / tgt_* 演示表)
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "BucketResult",
     "DiffDetail",
     "RepairTicket",
+    "SignoffRecord",
 ]

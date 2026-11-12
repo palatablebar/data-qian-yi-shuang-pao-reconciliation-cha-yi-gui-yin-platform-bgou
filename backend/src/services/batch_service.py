@@ -68,17 +68,23 @@ def create_batch(db: Session, payload: BatchCreateRequest, user_id: int) -> Reco
     return batch
 
 
-def dispatch_run(db: Session, batch: ReconBatch) -> dict[str, Any]:
+def dispatch_run(db: Session, batch: ReconBatch, force: bool = False) -> dict[str, Any]:
     if batch.status == BatchStatus.RUNNING.value:
         raise AppError(codes.BATCH_ALREADY_RUNNING, "批次正在运行中", f"batch_id={batch.id}")
-    if batch.status == BatchStatus.COMPLETED.value:
+    if batch.status == BatchStatus.COMPLETED.value and not force:
         raise AppError(codes.BATCH_INVALID_STATE, "批次已完成，请新建批次重跑", f"batch_id={batch.id}")
     # 先落 running 再投递：worker 可能秒级完成，避免入队后本地 commit 把 completed 覆盖回 running
     batch.status = BatchStatus.RUNNING.value
     batch.started_at = batch.started_at or now()
+    if force:
+        # 重跑：清空完成态与失败原因，引擎内部会先删旧桶/旧差异再重算
+        batch.failure_reason = None
+        batch.finished_at = None
     db.commit()
     try:
-        async_result = celery_app.send_task(TASK_RUN_RECON_BATCH, args=[batch.id])
+        async_result = celery_app.send_task(
+            TASK_RUN_RECON_BATCH, args=[batch.id], kwargs={"force": force}
+        )
     except Exception as exc:  # noqa: BLE001 - broker 不可用时回滚状态并给出明确错误
         batch.status = BatchStatus.PENDING.value
         batch.started_at = None

@@ -9,8 +9,8 @@ logger = get_logger("paritycheck.worker.recon")
 
 
 @celery_app.task(name="paritycheck.run_recon_batch", bind=True, max_retries=1)
-def run_recon_batch(self, batch_id: int) -> dict:
-    logger.info("recon task start batch_id=%s task_id=%s", batch_id, self.request.id)
-    result = run_batch(int(batch_id))
+def run_recon_batch(self, batch_id: int, force: bool = False) -> dict:
+    logger.info("recon task start batch_id=%s task_id=%s force=%s", batch_id, self.request.id, force)
+    result = run_batch(int(batch_id), force=force)
     logger.info("recon task done batch_id=%s result=%s", batch_id, result)
     return result

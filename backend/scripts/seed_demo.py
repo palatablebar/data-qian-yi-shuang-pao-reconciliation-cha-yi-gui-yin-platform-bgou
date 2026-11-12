@@ -50,7 +50,7 @@ DEMO_USERS = [
     ("viewer@paritycheck.demo", "明川银行 · 审计", ROLE_VIEWER),
 ]
 
-# pair -> (src 行数, tgt 行数)
+# pair -> (src 行数, tgt 行数, 是否上线评审核心表)
 PAIR_SIZES = {
     "orders": (2600, 2596),
     "order_item": (3000, 2992),
@@ -58,6 +58,8 @@ PAIR_SIZES = {
     "payment": (2100, 2096),
     "refund": (2100, 2092),
 }
+# 上线评审口径的核心表：三张交易主链路表；payment/refund 为辅助流水，默认非核心
+CORE_PAIRS = {"orders", "order_item", "customer"}
 # pair -> 目标缺失行数（refund 另有 1 行源端主键为 NULL，不下发目标端）
 MISSING_PLAN = {
     "orders": 4,
@@ -499,6 +501,7 @@ def seed_pairs(db) -> dict[str, TablePair]:
                 primary_key=PRIMARY_KEYS[meta["code"]],
                 field_rules=field_rules,
                 status=PairStatus.ACTIVE.value,
+                is_core=meta["code"] in CORE_PAIRS,
                 owner=meta["owner"],
                 row_estimate_src=src_count,
                 row_estimate_tgt=tgt_count,
@@ -512,6 +515,8 @@ def seed_pairs(db) -> dict[str, TablePair]:
             pair.row_estimate_tgt = tgt_count
             if not pair.field_rules:
                 pair.field_rules = field_rules
+            # 重复 seed 时同步演示口径的核心表标记（人工改过也回到 demo 基线）
+            pair.is_core = meta["code"] in CORE_PAIRS
         pairs[meta["code"]] = pair
     db.commit()
     return pairs
@@ -628,8 +633,12 @@ def seed_tickets(db, batches: dict[str, ReconBatch], users: dict[str, User]) -> 
 
     qty_ids = diff_ids("order_item", "qty", DiffType.TYPE_TRUNCATED.value, 12)
     phone_ids = diff_ids("customer", "phone", DiffType.ENCODING.value, 8)
-    missing_ids = diff_ids("order_item", "__row__", DiffType.MISSING.value, 6) + diff_ids(
-        "customer", "__row__", DiffType.MISSING.value, 4
+    # 已审批补数单覆盖全部 20 条缺失行（orders 4 + order_item 8 + customer 8），
+    # 使演示路径「审批剩余两张单 → 刷新底稿 → 签核通过」可完整走通
+    missing_ids = (
+        diff_ids("orders", "__row__", DiffType.MISSING.value, 100)
+        + diff_ids("order_item", "__row__", DiffType.MISSING.value, 100)
+        + diff_ids("customer", "__row__", DiffType.MISSING.value, 100)
     )
 
     analyst = users[ROLE_ANALYST]
@@ -662,9 +671,9 @@ def seed_tickets(db, batches: dict[str, ReconBatch], users: dict[str, User]) -> 
         db,
         ticket_service.TicketCreateRequest(
             batch_id=b1.id,
-            pair_codes=["order_item", "customer"],
+            pair_codes=["orders", "order_item", "customer"],
             diff_ids=missing_ids,
-            title="缺失行补数单：目标端未写入 10 行订单行/客户档案",
+            title="缺失行补数单：目标端未写入 20 行订单/订单行/客户档案",
             note="按主键从源库补写，补数后重跑对应桶。",
         ),
         analyst,
@@ -677,11 +686,46 @@ def seed_tickets(db, batches: dict[str, ReconBatch], users: dict[str, User]) -> 
     )
 
 
+def seed_signoffs(db, batches: dict[str, ReconBatch], users: dict[str, User]) -> None:
+    """预置一张签核底稿草稿：b1 覆盖三张核心表，但仍有未豁免差异（默认不可签核）。
+
+    幂等：同批次组合已存在签核记录则跳过（服务层本身也保证不新增）。
+    演示路径：审批页面把剩余修复单审批通过 → 刷新/签核通过 → 强制重跑 b1 →
+    已签记录被标记 stale（batch_rerun），需重签。
+    """
+    from src.models.signoff import SignoffRecord
+    from src.services import signoff_service
+
+    b1 = batches[f"PC-{SEED_BATCH_DATE}-0001"]
+    set_hash = signoff_service.batch_set_hash([b1.id])
+    if db.query(SignoffRecord).filter(SignoffRecord.batch_set_hash == set_hash).count() > 0:
+        print("SEED_SKIPPED entity=signoff key=existing", flush=True)
+        return
+
+    admin = users[ROLE_ADMIN]
+    record = signoff_service.create_draft(
+        db,
+        [b1.id],
+        "上线评审验收底稿：订单主链路三表（第三轮）",
+        "覆盖 orders/order_item/customer 三张核心表；阻塞差异清零后由迁移负责人签核。",
+        admin,
+    )
+    print(
+        f"SEED_CREATED entity=signoff key={record.signoff_no} "
+        f"passable={record.validation_json.get('passable')} "
+        f"blocking={record.validation_json.get('blocking_diff_count')}",
+        flush=True,
+    )
+
+
 def _counts(db) -> dict[str, int]:
+    from src.models.signoff import SignoffRecord
+
     pair_count = db.query(TablePair).count()
     batch_count = db.query(ReconBatch).count()
     diff_count = db.query(DiffDetail).count()
     ticket_count = db.query(RepairTicket).count()
+    signoff_count = db.query(SignoffRecord).count()
     user_count = db.query(User).count()
     with engine.connect() as conn:
         src_rows = sum(
@@ -699,6 +743,7 @@ def _counts(db) -> dict[str, int]:
         "batches": batch_count,
         "diffs": diff_count,
         "tickets": ticket_count,
+        "signoffs": signoff_count,
         "users": user_count,
     }
 
@@ -733,6 +778,7 @@ def seed_all() -> dict[str, int]:
         db.commit()
         db.expire_all()
         seed_tickets(db, batches, users)
+        seed_signoffs(db, batches, users)
         audit_service.record(
             db,
             action="seed.run",
@@ -751,7 +797,7 @@ def seed_all() -> dict[str, int]:
         "SEED_SUMMARY "
         f"pairs={counts['pairs']} src_rows={counts['src_rows']} tgt_rows={counts['tgt_rows']} "
         f"batches={counts['batches']} diffs={counts['diffs']} tickets={counts['tickets']} "
-        f"users={counts['users']}",
+        f"signoffs={counts['signoffs']} users={counts['users']}",
         flush=True,
     )
     return counts
